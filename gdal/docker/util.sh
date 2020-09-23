@@ -216,6 +216,15 @@ stop_rsync_host()
     fi
 }
 
+build_cmd()
+{
+    if test "${DOCKER_BUILDX}" = "buildx"; then
+        echo "${DOCKER_BUILDX}" build "${DOCKER_BUILDX_ARGS[@]}"
+    else
+        echo build
+    fi
+}
+
 if test "${BASE_IMAGE_NAME}" = "osgeo/gdal:ubuntu-full"; then
     PROJ_DATUMGRID_LATEST_LAST_MODIFIED=$(curl -Is https://cdn.proj.org/index.html | grep -i Last-Modified)
 else
@@ -245,9 +254,8 @@ if test "${RELEASE}" = "yes"; then
         "--build-arg" "WITH_DEBUG_SYMBOLS=${WITH_DEBUG_SYMBOLS}" \
     )
 
-    docker "${DOCKER_BUILDX}" build "${DOCKER_BUILDX_ARGS[@]}" "${BUILD_ARGS[@]}" --target builder \
-        -t "${BUILDER_IMAGE_NAME}" "${SCRIPT_DIR}"
-    docker "${DOCKER_BUILDX}" build "${DOCKER_BUILDX_ARGS[@]}" "${BUILD_ARGS[@]}" -t "${IMAGE_NAME}" "${SCRIPT_DIR}"
+    docker $(build_cmd) "${BUILD_ARGS[@]}" --target builder -t "${BUILDER_IMAGE_NAME}" "${SCRIPT_DIR}"
+    docker $(build_cmd) "${BUILD_ARGS[@]}" -t "${IMAGE_NAME}" "${SCRIPT_DIR}"
 
     if test "${DOCKER_BUILDX}" != "buildx"; then
         check_image "${IMAGE_NAME}"
@@ -255,7 +263,7 @@ if test "${RELEASE}" = "yes"; then
 
     if test "x${PUSH_GDAL_DOCKER_IMAGE}" = "xyes"; then
         if test "${DOCKER_BUILDX}" = "buildx"; then
-          docker "${DOCKER_BUILDX}" build "${DOCKER_BUILDX_ARGS[@]}" "${BUILD_ARGS[@]}" -t "${IMAGE_NAME}" --push "${SCRIPT_DIR}"
+          docker $(build_cmd) "${BUILD_ARGS[@]}" -t "${IMAGE_NAME}" --push "${SCRIPT_DIR}"
         else
           docker push "${IMAGE_NAME}"
         fi
@@ -283,7 +291,7 @@ else
     if ! docker ps | grep "${RSYNC_DAEMON_CONTAINER}"; then
         RSYNC_DAEMON_IMAGE=osgeo/gdal:gdal_rsync_daemon
         docker rmi "${RSYNC_DAEMON_IMAGE}" 2>/dev/null || true
-        docker "${DOCKER_BUILDX}" build "${DOCKER_BUILDX_ARGS[@]}" -t "${RSYNC_DAEMON_IMAGE}" - <<EOF
+        docker $(build_cmd) -t "${RSYNC_DAEMON_IMAGE}" - <<EOF
 FROM alpine
 
 VOLUME /opt/gdal-docker-cache
@@ -328,10 +336,10 @@ EOF
         "--build-arg" "WITH_DEBUG_SYMBOLS=${WITH_DEBUG_SYMBOLS}" \
     )
 
-    docker "${DOCKER_BUILDX}" build "${DOCKER_BUILDX_ARGS[@]}" --network "${BUILD_NETWORK}" "${BUILD_ARGS[@]}" --target builder \
+    docker $(build_cmd) --network "${BUILD_NETWORK}" "${BUILD_ARGS[@]}" --target builder \
         -t "${BUILDER_IMAGE_NAME}" "${SCRIPT_DIR}"
 
-    docker "${DOCKER_BUILDX}" build "${DOCKER_BUILDX_ARGS[@]}" "${BUILD_ARGS[@]}" -t "${IMAGE_NAME}" "${SCRIPT_DIR}"
+    docker $(build_cmd) "${BUILD_ARGS[@]}" -t "${IMAGE_NAME}" "${SCRIPT_DIR}"
 
     if test "${DOCKER_BUILDX}" != "buildx"; then
         check_image "${IMAGE_NAME}"
@@ -343,14 +351,14 @@ EOF
 
     if test "x${PUSH_GDAL_DOCKER_IMAGE}" = "xyes"; then
         if test "${DOCKER_BUILDX}" = "buildx"; then
-            docker "${DOCKER_BUILDX}" build "${DOCKER_BUILDX_ARGS[@]}" "${BUILD_ARGS[@]}" -t "${IMAGE_NAME}" --push "${SCRIPT_DIR}"
+            docker $(build_cmd) "${BUILD_ARGS[@]}" -t "${IMAGE_NAME}" --push "${SCRIPT_DIR}"
         else
             docker push "${IMAGE_NAME}"
         fi
 
         if test "x${IMAGE_NAME}" = "xosgeo/gdal:ubuntu-full-latest"; then
             if test "${DOCKER_BUILDX}" = "buildx"; then
-                docker "${DOCKER_BUILDX}" build "${DOCKER_BUILDX_ARGS[@]}" "${BUILD_ARGS[@]}" -t "osgeo/gdal:latest" --push "${SCRIPT_DIR}"
+                docker $(build_cmd) "${BUILD_ARGS[@]}" -t "osgeo/gdal:latest" --push "${SCRIPT_DIR}"
             else
                 docker push osgeo/gdal:latest
             fi
